@@ -9,15 +9,23 @@ data_path = Path(__file__).resolve().parent.parent / "data" / "data.csv"
 df = pd.read_csv(data_path, sep=";")
 df.columns = df.columns.str.strip()
 
-# 2. Isoler 15 instances "secrètes" pour la toute fin
-df_15_instances = df.sample(n=15, random_state=42)
-df_main = df.drop(df_15_instances.index)
+# 2. Définir les variables du 2e semestre, indisponibles pour une prédiction
+# faite à l'inscription ou après le 1er semestre.
+second_semester_columns = [
+    "Curricular units 2nd sem (credited)",
+    "Curricular units 2nd sem (enrolled)",
+    "Curricular units 2nd sem (evaluations)",
+    "Curricular units 2nd sem (approved)",
+    "Curricular units 2nd sem (grade)",
+    "Curricular units 2nd sem (without evaluations)",
+]
 
-# 3. Séparer features (X) et target (y)
-X = df_main.drop("Target", axis=1) # Target = Dropout, Enrolled, Graduate
-y = df_main["Target"]
+# Séparer features (X) et target (y), sans inclure les données futures.
+X = df.drop(columns=["Target", *second_semester_columns])
+y = df["Target"]
 
-# 4. Découpage stratifié 70% Train / 30% Test
+# 3. Découpage stratifié 70% Train / 30% Test.
+# Les 15 cas explicatifs seront sélectionnés plus tard dans X_test, jamais dans X_train.
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, 
     test_size=0.30, 
@@ -25,7 +33,7 @@ X_train, X_test, y_train, y_test = train_test_split(
     random_state=42
 )
 
-# 5. Définir les colonnes selon leur type
+# 4. Définir les colonnes selon leur type
 categorical_columns = [
     "Marital status",
     "Application mode",
@@ -59,12 +67,6 @@ numeric_columns = [
     "Curricular units 1st sem (approved)",
     "Curricular units 1st sem (grade)",
     "Curricular units 1st sem (without evaluations)",
-    "Curricular units 2nd sem (credited)",
-    "Curricular units 2nd sem (enrolled)",
-    "Curricular units 2nd sem (evaluations)",
-    "Curricular units 2nd sem (approved)",
-    "Curricular units 2nd sem (grade)",
-    "Curricular units 2nd sem (without evaluations)",
     "Unemployment rate",
     "Inflation rate",
     "GDP",

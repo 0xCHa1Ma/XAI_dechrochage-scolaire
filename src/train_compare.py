@@ -1,4 +1,4 @@
-"""Compare cinq familles de modèles avec recherche d'hyperparamètres."""
+"""Compare six familles de modèles avec recherche d'hyperparamètres."""
 
 import csv
 import json
@@ -14,11 +14,17 @@ from sklearn.pipeline import Pipeline
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import LabelEncoder
+from sklearn.utils.class_weight import compute_sample_weight
+from xgboost import XGBClassifier
 
 from src.data_pipeline import X_train, preprocessor, y_train
 
 # L'ordre des classes est fixé pour que les rappels et matrices soient lisibles.
 class_labels = ["Dropout", "Enrolled", "Graduate"]
+label_encoder = LabelEncoder().fit(class_labels)
+# XGBoost exige des étiquettes numériques; tous les modèles utilisent ce même codage.
+y_train_encoded = label_encoder.transform(y_train)
 
 # 1. Définir les familles de modèles et les hyperparamètres à tester.
 # Chaque recherche choisira les paramètres qui maximisent le F1 macro.
@@ -70,6 +76,21 @@ models_and_parameters = {
             "model__min_samples_leaf": [1, 5],
         },
     ),
+    "XGBoost": (
+        XGBClassifier(
+            objective="multi:softprob",
+            num_class=len(class_labels),
+            eval_metric="mlogloss",
+            tree_method="hist",
+            n_jobs=1,
+            random_state=42,
+        ),
+        {
+            "model__n_estimators": [100, 200],
+            "model__max_depth": [3, 6],
+            "model__learning_rate": [0.05, 0.1],
+        },
+    ),
 }
 
 # 2. Les deux validations sont stratifiées à 5 folds :
@@ -92,7 +113,7 @@ for model_name, (model, parameter_grid) in models_and_parameters.items():
     # 3. À chaque pli externe, chercher les paramètres sur 4/5 des données,
     # puis produire des prédictions sur le cinquième pli laissé de côté.
     for fold_number, (train_indices, validation_indices) in enumerate(
-        outer_cv.split(X_train, y_train),
+        outer_cv.split(X_train, y_train_encoded),
         start=1,
     ):
         pipeline = Pipeline(
@@ -111,19 +132,32 @@ for model_name, (model, parameter_grid) in models_and_parameters.items():
         )
 
         X_fold_train = X_train.iloc[train_indices]
-        y_fold_train = y_train.iloc[train_indices]
+        y_fold_train = y_train_encoded[train_indices]
         X_fold_validation = X_train.iloc[validation_indices]
-        y_fold_validation = y_train.iloc[validation_indices]
+        y_fold_validation_encoded = y_train_encoded[validation_indices]
 
         search_start = perf_counter()
-        search.fit(X_fold_train, y_fold_train)
+        if model_name == "XGBoost":
+            # XGBoost attend des classes numériques; ces poids compensent le déséquilibre.
+            sample_weights = compute_sample_weight("balanced", y_fold_train)
+            search.fit(
+                X_fold_train,
+                y_fold_train,
+                model__sample_weight=sample_weights,
+            )
+        else:
+            search.fit(X_fold_train, y_fold_train)
         search_seconds += perf_counter() - search_start
 
         prediction_start = perf_counter()
-        predictions = search.predict(X_fold_validation)
+        predictions_encoded = search.predict(X_fold_validation)
         probabilities = search.predict_proba(X_fold_validation)
         prediction_seconds += perf_counter() - prediction_start
 
+        y_fold_validation = label_encoder.inverse_transform(
+            y_fold_validation_encoded
+        )
+        predictions = label_encoder.inverse_transform(predictions_encoded)
         all_true_labels.extend(y_fold_validation)
         all_predictions.extend(predictions)
         all_probabilities.extend(probabilities)
