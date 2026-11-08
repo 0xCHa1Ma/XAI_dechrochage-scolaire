@@ -82,6 +82,3 @@ preprocessor = ColumnTransformer(
         ("ordinal", "passthrough", ordinal_columns),
     ]
 )
-
-X_train_prepared = preprocessor.fit_transform(X_train)
-X_test_prepared = preprocessor.transform(X_test)
