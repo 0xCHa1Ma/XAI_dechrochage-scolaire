@@ -1,1 +1,2 @@
 xgboost>=3.0,<4.0
+matplotlib>=3.5,<4.0

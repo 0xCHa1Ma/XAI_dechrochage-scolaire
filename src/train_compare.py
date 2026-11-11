@@ -5,8 +5,10 @@ import json
 from pathlib import Path
 from time import perf_counter
 
+import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.calibration import calibration_curve
 from sklearn.metrics import accuracy_score, confusion_matrix, f1_score, recall_score
 from sklearn.model_selection import GridSearchCV, StratifiedKFold
 from sklearn.neighbors import KNeighborsClassifier
@@ -98,6 +100,7 @@ models_and_parameters = {
 outer_cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 inner_cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=43)
 comparison_rows = []
+calibration_data = []
 
 for model_name, (model, parameter_grid) in models_and_parameters.items():
     print(f"\n{'=' * 60}\n{model_name}")
@@ -197,6 +200,7 @@ for model_name, (model, parameter_grid) in models_and_parameters.items():
     # Plus il est bas, mieux les probabilités prédites sont calibrées.
     probability_array = np.asarray(all_probabilities)
     true_array = np.asarray(all_true_labels)
+    calibration_data.append((model_name, true_array, probability_array))
     one_hot_labels = np.column_stack(
         [true_array == label for label in class_labels]
     ).astype(float)
@@ -247,3 +251,53 @@ with output_path.open("w", newline="", encoding="utf-8-sig") as csv_file:
     writer.writerows(comparison_rows)
 
 print(f"\nTableau comparatif enregistré dans : {output_path}")
+
+# Tracer une courbe par modèle et par classe à partir des prédictions hors pli.
+figure, axes = plt.subplots(
+    1,
+    len(class_labels),
+    figsize=(16, 5),
+    sharex=True,
+    sharey=True,
+)
+for class_index, (axis, class_label) in enumerate(zip(axes, class_labels)):
+    axis.plot(
+        [0, 1],
+        [0, 1],
+        linestyle="--",
+        color="gray",
+        label="Calibration parfaite",
+    )
+    for model_name, true_labels, probabilities in calibration_data:
+        observed_frequency, mean_predicted_probability = calibration_curve(
+            true_labels == class_label,
+            probabilities[:, class_index],
+            n_bins=10,
+            strategy="uniform",
+        )
+        axis.plot(
+            mean_predicted_probability,
+            observed_frequency,
+            marker="o",
+            label=model_name,
+        )
+    axis.set_title(class_label)
+    axis.set_xlabel("Probabilité moyenne prédite")
+    axis.set_xlim(0, 1)
+    axis.set_ylim(0, 1)
+    axis.grid(alpha=0.25)
+axes[0].set_ylabel("Fréquence observée")
+figure.suptitle("Courbes de calibration (prédictions hors pli)")
+handles, labels = axes[0].get_legend_handles_labels()
+figure.legend(
+    handles,
+    labels,
+    loc="lower center",
+    ncol=4,
+    bbox_to_anchor=(0.5, -0.03),
+)
+figure.tight_layout(rect=(0, 0.12, 1, 0.94))
+calibration_path = output_path.parent / "calibration_curves.png"
+figure.savefig(calibration_path, dpi=180, bbox_inches="tight")
+plt.close(figure)
+print(f"Courbes de calibration enregistrées dans : {calibration_path}")
