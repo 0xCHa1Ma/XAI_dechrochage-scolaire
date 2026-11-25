@@ -1,0 +1,9 @@
+Référence objective :
+<reference>
+{reference}
+</reference>
+Explication à évaluer, sans métadonnées sur son niveau ou son modèle producteur :
+<explanation>
+{explanation}
+</explanation>
+Évalue l'explication par rapport à la référence et renvoie exclusivement le JSON spécifié dans les instructions système.

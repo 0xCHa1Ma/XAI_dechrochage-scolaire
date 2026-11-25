@@ -1,0 +1,10 @@
+Niveau de démocratisation : {level}
+Théorie du domaine : {domain}
+Fiche destinataire : {profile}
+
+Données de l'instance et de l'explication structurées (JSON) :
+<instance>
+{payload}
+</instance>
+
+Explique ce que le modèle prédit et ce que signifie l'explication technique. N'affirme que ce qui est justifié par les données entre balises. Pour une attribution, le signe indique une contribution au score de la classe expliquée, pas une cause. Pour une règle, indique que sa précision/couverture est locale et dépend de l'échantillonnage. Pour un contrefactuel, décris uniquement les changements fournis et rappelle qu'ils ne garantissent pas un résultat réel. Si une méthode a échoué ou est indisponible, ne comble pas le manque. Ne donne pas de conseil financier, médical ou disciplinaire.
